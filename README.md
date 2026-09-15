@@ -246,10 +246,11 @@ docker-compose up --build
 
 ## 🌐 Public Deployment & Demo
 
-* **Frontend Public URL:** [https://ohive-lead-extractor.vercel.app](https://ohive-lead-extractor.vercel.app) *(Active Localtunnel: `https://plenty-guests-cry.loca.lt`)*
-* **Backend Public URL:** [https://ohive-backend.onrender.com](https://ohive-backend.onrender.com) *(Active Localtunnel: `https://breezy-days-tickle.loca.lt`)*
-* **Interactive API Docs (Swagger UI):** [https://ohive-backend.onrender.com/docs](https://ohive-backend.onrender.com/docs)
+* **Frontend Public URL:** [https://ohive-lead-extractor-app.vercel.app](https://ohive-lead-extractor-app.vercel.app) *(Active Localtunnel: `https://ohive-frontend-demo.loca.lt`)*
+* **Backend Public URL:** [https://ohive-backend-demo.loca.lt](https://ohive-backend-demo.loca.lt) *(Render: `https://ohive-backend.onrender.com`)*
+* **Interactive API Docs (Swagger UI):** [https://ohive-backend-demo.loca.lt/docs](https://ohive-backend-demo.loca.lt/docs)
 * **GitHub Repository:** [https://github.com/aryan007-bot/O-HIVE-Lead-Extractor.git](https://github.com/aryan007-bot/O-HIVE-Lead-Extractor.git)
+
 
 ---
 
