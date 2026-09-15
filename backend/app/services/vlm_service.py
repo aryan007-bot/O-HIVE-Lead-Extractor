@@ -49,6 +49,7 @@ class VLMService:
         self._initialized = False
         self._fallback_mode = False
         self._device = None
+        self._rapid_ocr = None
 
     @property
     def is_initialized(self) -> bool:
@@ -248,11 +249,12 @@ class VLMService:
 
         extracted_lines: list[str] = []
 
-        # 1. Try RapidOCR (ONNX pure Python engine)
+        # 1. Try RapidOCR (ONNX pure Python engine with singleton caching)
         try:
-            from rapidocr_onnxruntime import RapidOCR
-            ocr_engine = RapidOCR()
-            result, _ = ocr_engine(image_path)
+            if self._rapid_ocr is None:
+                from rapidocr_onnxruntime import RapidOCR
+                self._rapid_ocr = RapidOCR()
+            result, _ = self._rapid_ocr(image_path)
             if result:
                 extracted_lines = [item[1].strip() for item in result if len(item) > 1 and item[1] and item[1].strip()]
                 logger.info("RapidOCR extracted %d lines from %s", len(extracted_lines), image_path)
