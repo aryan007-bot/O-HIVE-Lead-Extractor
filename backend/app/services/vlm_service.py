@@ -195,7 +195,9 @@ class VLMService:
             settings = get_settings()
             api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY
             api_url = settings.VLM_API_URL or "https://openrouter.ai/api/v1/chat/completions"
-            model_name = settings.VLM_MODEL_NAME or "meta-llama/llama-3.2-11b-vision-instruct:free"
+            model_name = settings.VLM_MODEL_NAME
+            if not model_name or "72b" in model_name:
+                model_name = "meta-llama/llama-3.2-11b-vision-instruct:free"
 
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
@@ -218,8 +220,9 @@ class VLMService:
                     ],
                     "temperature": 0.0,
                 }
-                with httpx.Client(timeout=2.5) as client:
-                    response = client.post(api_url, headers=headers, json=payload)
+                timeout_spec = httpx.Timeout(2.5, connect=2.0)
+                with httpx.Client() as client:
+                    response = client.post(api_url, headers=headers, json=payload, timeout=timeout_spec)
                     if response.status_code == 200:
                         data = response.json()
                         raw_text = data["choices"][0]["message"]["content"]
@@ -231,11 +234,13 @@ class VLMService:
                     "inputs": f"data:image/jpeg;base64,{encoded_image}",
                     "parameters": {"prompt": EXTRACTION_PROMPT},
                 }
-                with httpx.Client(timeout=2.5) as client:
+                timeout_spec = httpx.Timeout(2.5, connect=2.0)
+                with httpx.Client() as client:
                     response = client.post(
                         f"https://api-inference.huggingface.co/models/{settings.QWEN_MODEL_NAME}",
                         headers=headers,
                         json=payload,
+                        timeout=timeout_spec,
                     )
                     if response.status_code == 200:
                         res_json = response.json()
