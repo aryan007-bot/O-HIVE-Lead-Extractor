@@ -125,7 +125,7 @@ class VLMService:
                 logger.warning("Lazy initialization failed, defaulting to fallback mode: %s", e)
                 self._fallback_mode = True
 
-        if self._fallback_mode or not self._initialized:
+        if self._fallback_mode or not self._initialized or self._processor is None:
             return self._fallback_extract(image_path)
 
         import torch
@@ -259,7 +259,18 @@ class VLMService:
         except Exception as e:
             logger.warning("RapidOCR unavailable: %s", e)
 
-        # 2. Try pytesseract if RapidOCR was empty
+        # 2. Try EasyOCR if RapidOCR was empty or unavailable
+        if not extracted_lines:
+            try:
+                import easyocr
+                reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+                extracted_lines = reader.readtext(image_path, detail=0)
+                if extracted_lines:
+                    logger.info("EasyOCR extracted %d lines from %s", len(extracted_lines), image_path)
+            except Exception as e:
+                logger.debug("EasyOCR unavailable: %s", e)
+
+        # 3. Try pytesseract if still empty
         if not extracted_lines:
             try:
                 import pytesseract
@@ -365,7 +376,8 @@ class VLMService:
         suffixes = {"jr", "sr", "iii", "iv", "phd", "mba", "md", "esq", "cpa"}
 
         def _format_name_words(raw_line: str) -> tuple[Optional[str], Optional[str]]:
-            clean_words = [w.strip(",") for w in raw_line.split() if w.strip(",")]
+            split_name = re.sub(r'([a-z])([A-Z])', r'\1 \2', raw_line)
+            clean_words = [w.strip(",") for w in split_name.split() if w.strip(",")]
             if clean_words and clean_words[0].lower().replace(".", "") in honorifics:
                 clean_words = clean_words[1:]
             if clean_words and clean_words[-1].lower().replace(".", "") in suffixes:
@@ -415,19 +427,5 @@ class VLMService:
             if email_domain.lower() not in ignored_domains:
                 fields["company"] = email_domain.capitalize()
 
-        # Fallback name/email hints from filename if fields are still empty
-        raw_stem = Path(image_path).stem
-        cleaned_text = re.sub(r'(?i)\b(card|businesscard|image|img|pic|photo|sample)\b', '', raw_stem)
-        words = [w for w in re.split(r'[^a-zA-Z]+', cleaned_text) if w and len(w) >= 2]
-
-        if not fields["email"]:
-            possible_email = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', raw_stem)
-            if possible_email:
-                fields["email"] = possible_email.group(0).lower()
-
-        if not fields["first_name"] and words:
-            fields["first_name"] = words[0].capitalize()
-            if len(words) > 1:
-                fields["last_name"] = " ".join(w.capitalize() for w in words[1:])
-
         return fields
+

@@ -43,13 +43,18 @@ def _get_image_service() -> ImageService:
 
 
 def _calculate_quality(lead_data: dict) -> str:
+    has_name = bool(lead_data.get("first_name") or lead_data.get("last_name"))
+    has_company = bool(lead_data.get("company"))
+    has_contact = bool(lead_data.get("email") or lead_data.get("phone"))
+
+    if not (has_contact or (has_name and has_company)):
+        return "failed"
+
     required_fields = ["first_name", "last_name", "position", "company", "location", "phone", "email"]
     filled = sum(1 for f in required_fields if lead_data.get(f))
-    if filled == len(required_fields):
+    if filled >= 4:
         return "complete"
-    elif filled > 0:
-        return "partial"
-    return "failed"
+    return "partial"
 
 
 async def _process_single_file(
@@ -66,6 +71,13 @@ async def _process_single_file(
             lead = extraction_service.extract_lead(content, file.filename or "unknown")
 
         quality = _calculate_quality(lead.model_dump())
+        if quality == "failed":
+            return ProcessingResult(
+                filename=file.filename or "unknown",
+                status="failed",
+                error="Could not extract contact information from business card.",
+                extraction_quality="failed",
+            )
 
         logger.info("Success processing %s (quality=%s)", file.filename, quality)
         return ProcessingResult(
@@ -140,16 +152,7 @@ async def upload_business_cards(
                 result.lead_id = orm.id
                 logger.info("Persisted lead id=%d from %s", orm.id, result.filename)
             elif result.status == "failed":
-                try:
-                    repo.create_lead(
-                        lead_data={
-                            "status": "failed",
-                            "extraction_quality": "failed",
-                        },
-                        source_filename=result.filename,
-                    )
-                except Exception:
-                    logger.warning("Could not persist failed lead for %s", result.filename)
+                logger.info("Skipping database persistence for failed extraction %s", result.filename)
     finally:
         db.close()
 
