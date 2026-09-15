@@ -63,6 +63,15 @@ class VLMService:
         settings = get_settings()
         api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY or settings.HF_TOKEN
         
+        # Pre-warm RapidOCR for instant sub-second OCR extractions
+        try:
+            if self._rapid_ocr is None:
+                from rapidocr_onnxruntime import RapidOCR
+                self._rapid_ocr = RapidOCR()
+                logger.info("RapidOCR engine pre-warmed and ready")
+        except Exception as e:
+            logger.warning("RapidOCR pre-warming deferred: %s", e)
+
         if settings.VLM_PROVIDER == "hosted" or (settings.VLM_PROVIDER == "auto" and api_key):
             logger.info("Configured for remote VLM API inference (%s model: %s)", settings.VLM_PROVIDER, settings.VLM_MODEL_NAME)
             self._initialized = True

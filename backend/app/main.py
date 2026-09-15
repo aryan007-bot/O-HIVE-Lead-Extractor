@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     try:
         vlm_service = VLMService()
+        vlm_service.initialize()
         app_state["vlm_service"] = vlm_service
         extraction_service = ExtractionService(vlm_service)
         app_state["extraction_service"] = extraction_service
