@@ -53,22 +53,10 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    origins = settings.cors_origins_list
-    if settings.APP_ENV == "development":
-        origins.extend([
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3001",
-            "http://localhost:3002",
-            "http://127.0.0.1:3002",
-        ])
-        origins = list(dict.fromkeys(origins))
-
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
+        allow_origins=["*"],
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

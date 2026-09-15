@@ -28,6 +28,8 @@ class ApiClient {
     const response = await fetch(url, {
       ...fetchOptions,
       headers: {
+        "Bypass-Tunnel-Reminder": "true",
+        "ngrok-skip-browser-warning": "true",
         ...fetchOptions.headers,
       },
     });
@@ -50,7 +52,9 @@ class ApiClient {
       ...options,
       method: "POST",
       body: isFormData ? body : body ? JSON.stringify(body) : undefined,
-      headers: isFormData ? {} : { "Content-Type": "application/json", ...options?.headers },
+      headers: isFormData
+        ? { "Bypass-Tunnel-Reminder": "true", "ngrok-skip-browser-warning": "true", ...options?.headers }
+        : { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true", "ngrok-skip-browser-warning": "true", ...options?.headers },
     });
   }
 
@@ -59,7 +63,7 @@ class ApiClient {
       ...options,
       method: "PUT",
       body: body ? JSON.stringify(body) : undefined,
-      headers: { "Content-Type": "application/json", ...options?.headers },
+      headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true", "ngrok-skip-browser-warning": "true", ...options?.headers },
     });
   }
 
@@ -69,7 +73,15 @@ class ApiClient {
 
   async download(endpoint: string, options?: RequestOptions): Promise<Blob> {
     const url = this.buildUrl(endpoint, options?.params);
-    const response = await fetch(url, { ...options, method: "GET" });
+    const response = await fetch(url, {
+      ...options,
+      method: "GET",
+      headers: {
+        "Bypass-Tunnel-Reminder": "true",
+        "ngrok-skip-browser-warning": "true",
+        ...options?.headers,
+      },
+    });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: "Download failed" }));
