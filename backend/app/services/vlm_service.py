@@ -188,17 +188,16 @@ class VLMService:
 
     def _extract_via_api(self, image_path: str) -> Optional[Dict[str, Any]]:
         import base64
-        import httpx
-        import concurrent.futures
+        import requests
 
-        def _fetch_from_remote_api():
-            settings = get_settings()
-            api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY
-            api_url = settings.VLM_API_URL or "https://openrouter.ai/api/v1/chat/completions"
-            model_name = settings.VLM_MODEL_NAME
-            if not model_name or "72b" in model_name:
-                model_name = "meta-llama/llama-3.2-11b-vision-instruct:free"
+        settings = get_settings()
+        api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY
+        api_url = settings.VLM_API_URL or "https://openrouter.ai/api/v1/chat/completions"
+        model_name = settings.VLM_MODEL_NAME
+        if not model_name or "72b" in model_name:
+            model_name = "meta-llama/llama-3.2-11b-vision-instruct:free"
 
+        try:
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
 
@@ -220,13 +219,11 @@ class VLMService:
                     ],
                     "temperature": 0.0,
                 }
-                timeout_spec = httpx.Timeout(2.5, connect=2.0)
-                with httpx.Client() as client:
-                    response = client.post(api_url, headers=headers, json=payload, timeout=timeout_spec)
-                    if response.status_code == 200:
-                        data = response.json()
-                        raw_text = data["choices"][0]["message"]["content"]
-                        return extract_json_from_text(raw_text)
+                response = requests.post(api_url, headers=headers, json=payload, timeout=2.5)
+                if response.status_code == 200:
+                    data = response.json()
+                    raw_text = data["choices"][0]["message"]["content"]
+                    return extract_json_from_text(raw_text)
 
             if settings.HF_TOKEN:
                 headers = {"Authorization": f"Bearer {settings.HF_TOKEN}"}
@@ -234,34 +231,23 @@ class VLMService:
                     "inputs": f"data:image/jpeg;base64,{encoded_image}",
                     "parameters": {"prompt": EXTRACTION_PROMPT},
                 }
-                timeout_spec = httpx.Timeout(2.5, connect=2.0)
-                with httpx.Client() as client:
-                    response = client.post(
-                        f"https://api-inference.huggingface.co/models/{settings.QWEN_MODEL_NAME}",
-                        headers=headers,
-                        json=payload,
-                        timeout=timeout_spec,
-                    )
-                    if response.status_code == 200:
-                        res_json = response.json()
-                        if isinstance(res_json, list) and len(res_json) > 0:
-                            raw_text = res_json[0].get("generated_text", str(res_json[0]))
-                        else:
-                            raw_text = str(res_json)
-                        return extract_json_from_text(raw_text)
-
-            return None
-
-        try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_fetch_from_remote_api)
-                return future.result(timeout=3.0)
-        except concurrent.futures.TimeoutError:
-            logger.warning("VLM API total wall-clock budget (3.0s) exceeded for %s. Dropping to RapidOCR.", image_path)
-            return None
+                response = requests.post(
+                    f"https://api-inference.huggingface.co/models/{settings.QWEN_MODEL_NAME}",
+                    headers=headers,
+                    json=payload,
+                    timeout=2.5,
+                )
+                if response.status_code == 200:
+                    res_json = response.json()
+                    if isinstance(res_json, list) and len(res_json) > 0:
+                        raw_text = res_json[0].get("generated_text", str(res_json[0]))
+                    else:
+                        raw_text = str(res_json)
+                    return extract_json_from_text(raw_text)
         except Exception as e:
-            logger.warning("VLM API extraction exception: %s", e)
-            return None
+            logger.warning("API VLM extraction exception or timeout (2.5s limit): %s", e)
+
+        return None
 
 
     def _fallback_extract(self, image_path: str) -> Dict[str, Any]:
