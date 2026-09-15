@@ -274,12 +274,16 @@ class VLMService:
             if self._rapid_ocr is None:
                 from rapidocr_onnxruntime import RapidOCR
                 self._rapid_ocr = RapidOCR()
-            result, _ = self._rapid_ocr(image_path)
+            from PIL import Image
+            import numpy as np
+            with Image.open(image_path) as img:
+                img_np = np.array(img.convert("RGB"))
+                result, _ = self._rapid_ocr(img_np)
             if result:
                 extracted_lines = [item[1].strip() for item in result if len(item) > 1 and item[1] and item[1].strip()]
                 logger.info("RapidOCR extracted %d lines from %s", len(extracted_lines), image_path)
         except Exception as e:
-            logger.warning("RapidOCR unavailable: %s", e)
+            logger.warning("RapidOCR failed for %s: %s", image_path, e)
 
         # 2. Try EasyOCR if RapidOCR was empty or unavailable
         if not extracted_lines:
