@@ -288,18 +288,7 @@ class VLMService:
         except Exception as e:
             logger.warning("RapidOCR failed for %s: %s", image_path, e)
 
-        # 2. Try EasyOCR if RapidOCR was empty or unavailable
-        if not extracted_lines:
-            try:
-                import easyocr
-                reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-                extracted_lines = reader.readtext(image_path, detail=0)
-                if extracted_lines:
-                    logger.info("EasyOCR extracted %d lines from %s", len(extracted_lines), image_path)
-            except Exception as e:
-                logger.debug("EasyOCR unavailable: %s", e)
-
-        # 3. Try pytesseract if still empty
+        # 2. Try pytesseract if RapidOCR was empty or unavailable
         if not extracted_lines:
             try:
                 import pytesseract
