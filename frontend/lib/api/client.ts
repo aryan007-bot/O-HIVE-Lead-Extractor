@@ -26,8 +26,8 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private buildUrl(endpoint: string, params?: Record<string, string>): string {
-    const base = this.baseUrl || (typeof window !== "undefined" ? window.location.origin : "");
+  private buildUrl(endpoint: string, params?: Record<string, string>, forceAbsolute: boolean = false): string {
+    let base = forceAbsolute ? "https://ohive-backend.onrender.com" : (this.baseUrl || (typeof window !== "undefined" ? window.location.origin : ""));
     let url: URL;
 
     if (base && (base.startsWith("http://") || base.startsWith("https://"))) {
@@ -62,6 +62,7 @@ class ApiClient {
         message.includes("503") ||
         message.includes("502") ||
         message.includes("504") ||
+        message.includes("404") ||
         message.includes("network") ||
         message.includes("failed to fetch") ||
         message.includes("econnrefused") ||
@@ -82,11 +83,12 @@ class ApiClient {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        return await this.request<T>(endpoint, options);
+        const forceAbsolute = attempt > 0;
+        return await this.request<T>(endpoint, options, forceAbsolute);
       } catch (error) {
         lastError = error;
         if (attempt < maxRetries && this.isRetryableError(error)) {
-          const delay = Math.min(5000 * Math.pow(2, attempt) + Math.random() * 2000, 15000);
+          const delay = Math.min(2000 * Math.pow(2, attempt) + Math.random() * 1000, 10000);
           await this.sleep(delay);
         } else {
           throw error;
@@ -97,9 +99,9 @@ class ApiClient {
     throw lastError;
   }
 
-  async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  async request<T>(endpoint: string, options: RequestOptions = {}, forceAbsolute: boolean = false): Promise<T> {
     const { params, ...fetchOptions } = options;
-    const url = this.buildUrl(endpoint, params);
+    const url = this.buildUrl(endpoint, params, forceAbsolute);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000);

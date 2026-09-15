@@ -47,8 +47,57 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     if isinstance(dbapi_connection, sqlite3.Connection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA busy_timeout=5000")
         cursor.close()
+
+
+def _seed_sample_leads_if_empty(session_factory) -> None:
+    try:
+        with session_factory() as session:
+            count = session.query(LeadORM).count()
+            if count == 0:
+                samples = [
+                    LeadORM(
+                        first_name="Alexander",
+                        last_name="Wright",
+                        position="Chief Technology Officer",
+                        company="Nexus AI Corp",
+                        location="San Francisco, CA",
+                        phone="+1 (415) 890-2341",
+                        email="alexander.wright@nexusai.com",
+                        status="extracted",
+                        extraction_quality="complete",
+                        source_filename="nexus_card_sample.png",
+                    ),
+                    LeadORM(
+                        first_name="Sophia",
+                        last_name="Martinez",
+                        position="VP of Product",
+                        company="PixelCraft Studio",
+                        location="Austin, TX",
+                        phone="+1 (512) 443-9821",
+                        email="sophia.m@pixelcraft.design",
+                        status="extracted",
+                        extraction_quality="complete",
+                        source_filename="pixelcraft_sample.png",
+                    ),
+                    LeadORM(
+                        first_name="Marcus",
+                        last_name="Vance",
+                        position="Operations Director",
+                        company="Global Logistics Co",
+                        location="Chicago, IL",
+                        phone="+1 (312) 654-0987",
+                        email="m.vance@globallogistics.io",
+                        status="extracted",
+                        extraction_quality="partial",
+                        source_filename="logistics_sample.png",
+                    ),
+                ]
+                session.add_all(samples)
+                session.commit()
+                logger.info("Seeded initial sample business card leads")
+    except Exception as e:
+        logger.warning("Failed to seed initial sample leads: %s", e)
 
 
 def init_db(database_url: Optional[str] = None, max_retries: int = 5) -> None:
@@ -85,6 +134,7 @@ def init_db(database_url: Optional[str] = None, max_retries: int = 5) -> None:
 
             _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
             Base.metadata.create_all(bind=_engine)
+            _seed_sample_leads_if_empty(_SessionLocal)
             _db_initialized = True
             logger.info("Database connected successfully (attempt %d)", attempt)
             return
