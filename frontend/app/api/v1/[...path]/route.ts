@@ -5,7 +5,7 @@ export const maxDuration = 60; // Max 60 seconds for VLM processing
 
 async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   const path = params.path ? params.path.join("/") : "";
-  const backendBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const backendBase = process.env.NEXT_PUBLIC_API_URL || "https://ohive-backend.onrender.com";
   const cleanBackend = backendBase.replace(/\/$/, "");
   const targetUrl = new URL(`/api/v1/${path}`, cleanBackend);
 
