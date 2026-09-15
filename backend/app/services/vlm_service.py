@@ -200,21 +200,19 @@ class VLMService:
         settings = get_settings()
         api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY
         api_url = settings.VLM_API_URL or "https://openrouter.ai/api/v1/chat/completions"
-        model_name = settings.VLM_MODEL_NAME
-        if not model_name or "72b" in model_name:
-            model_name = "meta-llama/llama-3.2-11b-vision-instruct:free"
 
         try:
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
 
+            fast_model = "meta-llama/llama-3.2-11b-vision-instruct:free"
             if api_key:
                 headers = {
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 }
                 payload = {
-                    "model": model_name,
+                    "model": fast_model,
                     "messages": [
                         {
                             "role": "user",
