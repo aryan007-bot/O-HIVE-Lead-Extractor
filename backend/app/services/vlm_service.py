@@ -121,25 +121,28 @@ class VLMService:
     def extract_from_image(self, image_path: str) -> Dict[str, Any]:
         import time
         settings = get_settings()
-
         t0 = time.time()
+
+        # 1. High-speed OCR extraction (0.5s - 1.0s)
         ocr_res = self._fallback_extract(image_path)
         t_ocr = time.time() - t0
-        logger.info("Fallback OCR completed in %.2fs for %s", t_ocr, image_path)
+        logger.info("RapidOCR execution took %.2fs for %s", t_ocr, image_path)
 
-        has_contact_info = any(ocr_res.get(k) for k in ["email", "phone", "first_name", "company"])
-        
-        if has_contact_info or settings.VLM_PROVIDER in ["rapidocr", "auto"]:
-            logger.info("Fast OCR path returning in %.2fs", time.time() - t0)
+        has_contact = any(ocr_res.get(k) for k in ["email", "phone", "first_name", "company"])
+        if has_contact or settings.VLM_PROVIDER == "rapidocr":
+            logger.info("Fast path returning OCR result in %.2fs", t_ocr)
             return ocr_res
 
+        # 2. Remote VLM API fallback (only if OCR yielded zero contact info)
         t_api_start = time.time()
         api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY or settings.HF_TOKEN
-        if settings.VLM_PROVIDER == "hosted" or (settings.VLM_PROVIDER == "auto" and api_key):
+        if settings.VLM_PROVIDER in ["hosted", "auto"] and api_key:
             api_res = self._extract_via_api(image_path)
             logger.info("API VLM path completed in %.2fs", time.time() - t_api_start)
             if api_res is not None:
                 return api_res
+
+        return ocr_res
 
         if not self._initialized and not self._fallback_mode:
             try:
