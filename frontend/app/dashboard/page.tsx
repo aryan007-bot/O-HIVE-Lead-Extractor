@@ -227,17 +227,6 @@ function DashboardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (error) {
-    return (
-      <AppShell>
-        <ErrorState
-          message="Failed to load leads data. Please check if the backend is running."
-          onRetry={refetch}
-        />
-      </AppShell>
-    );
-  }
-
   const showLeadsView = view === "leads";
   const pendingFiles = files.filter((f) => f.status === "pending");
   const completedCount = files.filter((f) => f.status === "completed").length;
@@ -246,6 +235,21 @@ function DashboardContent() {
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl space-y-6 p-4 lg:p-6">
+        {error && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span>⚠️</span>
+              <p className="text-sm font-medium">Connecting to extraction service... (Backend warming up or retrying)</p>
+            </div>
+            <button
+              onClick={() => refetch()}
+              className="text-xs font-semibold underline hover:no-underline px-2 py-1 rounded bg-amber-500/20"
+            >
+              Retry Connection
+            </button>
+          </div>
+        )}
+
         {showLeadsView ? (
           <>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

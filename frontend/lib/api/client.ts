@@ -12,7 +12,13 @@ class ApiClient {
   }
 
   private buildUrl(endpoint: string, params?: Record<string, string>): string {
-    const url = new URL(endpoint, this.baseUrl);
+    let url: URL;
+    if (this.baseUrl && (this.baseUrl.startsWith("http://") || this.baseUrl.startsWith("https://"))) {
+      url = new URL(endpoint, this.baseUrl);
+    } else {
+      const base = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+      url = new URL(endpoint, base);
+    }
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         url.searchParams.append(key, value);
