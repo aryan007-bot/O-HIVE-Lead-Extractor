@@ -5,7 +5,10 @@ export const maxDuration = 60; // Max 60 seconds for VLM processing
 
 async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   const path = params.path ? params.path.join("/") : "";
-  const backendBase = process.env.NEXT_PUBLIC_API_URL || "https://ohive-backend.onrender.com";
+  const rawBackend = process.env.NEXT_PUBLIC_API_URL;
+  const backendBase = (rawBackend && typeof rawBackend === "string" && rawBackend.trim().startsWith("http"))
+    ? rawBackend.trim()
+    : "https://ohive-backend.onrender.com";
   const cleanBackend = backendBase.replace(/\/$/, "");
   const targetUrl = new URL(`/api/v1/${path}`, cleanBackend);
 
@@ -15,9 +18,10 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   });
 
   const headers = new Headers();
+  const allowedHeaders = ["content-type", "accept", "authorization"];
   req.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (lower !== "host" && lower !== "connection" && lower !== "content-length") {
+    if (allowedHeaders.includes(lower)) {
       headers.set(key, value);
     }
   });

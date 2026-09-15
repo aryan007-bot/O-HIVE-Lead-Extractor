@@ -1,4 +1,12 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://ohive-backend.onrender.com";
+const getBaseUrl = (): string => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && typeof envUrl === "string" && envUrl.trim().length > 0 && (envUrl.startsWith("http://") || envUrl.startsWith("https://"))) {
+    return envUrl.trim();
+  }
+  return "https://ohive-backend.onrender.com";
+};
+
+const API_BASE_URL = getBaseUrl();
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string>;
@@ -16,8 +24,7 @@ class ApiClient {
     if (this.baseUrl && (this.baseUrl.startsWith("http://") || this.baseUrl.startsWith("https://"))) {
       url = new URL(endpoint, this.baseUrl);
     } else {
-      const base = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
-      url = new URL(endpoint, base);
+      url = new URL(endpoint, "https://ohive-backend.onrender.com");
     }
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
