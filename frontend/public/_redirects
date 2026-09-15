@@ -1,1 +1,3 @@
-/*    /index.html   200
+/api/v1/*    https://ohive-backend.onrender.com/api/v1/:splat    200!
+/health      https://ohive-backend.onrender.com/health           200!
+/*           /index.html                                         200

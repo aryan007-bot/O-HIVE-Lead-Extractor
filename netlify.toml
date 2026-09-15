@@ -6,6 +6,18 @@
   package = "@netlify/plugin-nextjs"
 
 [[redirects]]
+  from = "/api/v1/*"
+  to = "https://ohive-backend.onrender.com/api/v1/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/health"
+  to = "https://ohive-backend.onrender.com/health"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/:splat"
   status = 200

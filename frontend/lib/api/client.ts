@@ -1,4 +1,11 @@
 const getBaseUrl = (): string => {
+  if (typeof window !== "undefined") {
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl && typeof envUrl === "string" && envUrl.trim().length > 0 && (envUrl.startsWith("http://") || envUrl.startsWith("https://"))) {
+      return envUrl.trim();
+    }
+    return "";
+  }
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (envUrl && typeof envUrl === "string" && envUrl.trim().length > 0 && (envUrl.startsWith("http://") || envUrl.startsWith("https://"))) {
     return envUrl.trim();
