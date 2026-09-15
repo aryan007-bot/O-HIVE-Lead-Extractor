@@ -1,5 +1,15 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "https://ohive-backend.onrender.com/api/v1/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://ohive-backend.onrender.com/health"
+    }
+  ]
 }
