@@ -1,12 +1,9 @@
 const getBaseUrl = (): string => {
-  if (typeof window !== "undefined") {
-    return "";
-  }
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (envUrl && typeof envUrl === "string" && envUrl.trim().length > 0 && (envUrl.startsWith("http://") || envUrl.startsWith("https://"))) {
     return envUrl.trim();
   }
-  return "";
+  return "https://ohive-backend.onrender.com";
 };
 
 const API_BASE_URL = getBaseUrl();
@@ -23,28 +20,28 @@ class ApiClient {
   }
 
   private buildUrl(endpoint: string, params?: Record<string, string>): string {
-    let urlStr: string;
+    const base = this.baseUrl || (typeof window !== "undefined" ? window.location.origin : "");
+    let url: URL;
 
-    if (this.baseUrl) {
+    if (base && (base.startsWith("http://") || base.startsWith("https://"))) {
       try {
-        const base = new URL(this.baseUrl);
-        urlStr = new URL(endpoint, base).toString();
+        url = new URL(endpoint, base);
       } catch {
-        urlStr = endpoint;
+        url = new URL(endpoint, "http://localhost");
       }
     } else {
-      urlStr = endpoint;
+      url = new URL(endpoint, typeof window !== "undefined" ? window.location.origin : "http://localhost");
     }
 
     if (params && Object.keys(params).length > 0) {
-      const url = new URL(urlStr, typeof window !== "undefined" ? window.location.origin : "http://localhost");
       Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.append(key, value);
+        if (value !== undefined && value !== null && value !== "") {
+          url.searchParams.append(key, value);
+        }
       });
-      urlStr = url.pathname + url.search;
     }
 
-    return urlStr;
+    return url.toString();
   }
 
   private async sleep(ms: number): Promise<void> {

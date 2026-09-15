@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 15;
 
-const BACKEND_URL = "https://ohive-backend.onrender.com";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://ohive-backend.onrender.com";
 
 async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   const path = params.path ? params.path.join("/") : "";
@@ -37,64 +37,49 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
     }
   }
 
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= 4; attempt++) {
-    try {
-      const backendRes = await fetch(targetUrl.toString(), {
-        method: req.method,
-        headers: headers,
-        body: bodyBuffer,
-        signal: AbortSignal.timeout(45000),
-      });
+  try {
+    const backendRes = await fetch(targetUrl.toString(), {
+      method: req.method,
+      headers: headers,
+      body: bodyBuffer,
+      signal: AbortSignal.timeout(12000),
+    });
 
-      if (backendRes.status === 503 && attempt < 4) {
-        await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
-        continue;
+    const resHeaders = new Headers();
+    backendRes.headers.forEach((val, key) => {
+      const lower = key.toLowerCase();
+      if (lower !== "content-encoding" && lower !== "content-length" && lower !== "transfer-encoding") {
+        resHeaders.set(key, val);
       }
+    });
 
-      const resHeaders = new Headers();
-      backendRes.headers.forEach((val, key) => {
-        const lower = key.toLowerCase();
-        if (lower !== "content-encoding" && lower !== "content-length" && lower !== "transfer-encoding") {
-          resHeaders.set(key, val);
-        }
-      });
+    resHeaders.set("Access-Control-Allow-Origin", "*");
+    resHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    resHeaders.set("Access-Control-Allow-Headers", "*");
 
-      resHeaders.set("Access-Control-Allow-Origin", "*");
-      resHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-      resHeaders.set("Access-Control-Allow-Headers", "*");
-
-      return new NextResponse(backendRes.body, {
-        status: backendRes.status,
-        statusText: backendRes.statusText,
-        headers: resHeaders,
-      });
-    } catch (err: unknown) {
-      lastError = err;
-      if (attempt < 4) {
-        const backoff = attempt * 3000;
-        await new Promise((resolve) => setTimeout(resolve, backoff));
-      }
-    }
-  }
-
-  const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
-  console.error("Proxy error to backend:", errorMsg);
-  return NextResponse.json(
-    {
-      detail: "Backend service is starting up. Render free tier requires ~60s warm-up. Please wait and retry.",
-      error: errorMsg,
-    },
-    {
-      status: 503,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "*",
-        "Retry-After": "60",
+    return new NextResponse(backendRes.body, {
+      status: backendRes.status,
+      statusText: backendRes.statusText,
+      headers: resHeaders,
+    });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error("Proxy error to backend:", errorMsg);
+    return NextResponse.json(
+      {
+        detail: "Backend service unreachable. Render free tier may be spinning up.",
+        error: errorMsg,
       },
-    }
-  );
+      {
+        status: 504,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "*",
+        },
+      }
+    );
+  }
 }
 
 export async function GET(req: NextRequest, props: { params: Promise<{ path?: string[] }> }) {
