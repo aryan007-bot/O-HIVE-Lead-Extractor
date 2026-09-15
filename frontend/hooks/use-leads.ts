@@ -29,11 +29,14 @@ export function useLeads() {
     isLoading,
     error,
     refetch: refetchLeads,
+    failureCount,
   } = useQuery({
     queryKey: ["leads", mergedParams],
     queryFn: () => getLeads(mergedParams),
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    retry: 5,
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex) + Math.random() * 1000, 30000),
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
   });
 
   const {
@@ -43,8 +46,10 @@ export function useLeads() {
   } = useQuery({
     queryKey: ["leadStats"],
     queryFn: getLeadStats,
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    retry: 5,
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex) + Math.random() * 1000, 30000),
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
   });
 
   const refetch = useCallback(() => {
@@ -59,8 +64,11 @@ export function useLeads() {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast.success("Lead updated successfully");
     },
-    onError: () => {
-      toast.error("Failed to update lead");
+    onError: (error: Error) => {
+      const message = error.message.includes("503")
+        ? "Service temporarily unavailable. Please try again."
+        : "Failed to update lead";
+      toast.error(message);
     },
   });
 
@@ -71,8 +79,11 @@ export function useLeads() {
       queryClient.invalidateQueries({ queryKey: ["leadStats"] });
       toast.success("Lead deleted");
     },
-    onError: () => {
-      toast.error("Failed to delete lead");
+    onError: (error: Error) => {
+      const message = error.message.includes("503")
+        ? "Service temporarily unavailable. Please try again."
+        : "Failed to delete lead";
+      toast.error(message);
     },
   });
 
@@ -83,8 +94,11 @@ export function useLeads() {
       queryClient.invalidateQueries({ queryKey: ["leadStats"] });
       toast.success("All leads deleted");
     },
-    onError: () => {
-      toast.error("Failed to delete leads");
+    onError: (error: Error) => {
+      const message = error.message.includes("503")
+        ? "Service temporarily unavailable. Please try again."
+        : "Failed to delete leads";
+      toast.error(message);
     },
   });
 
@@ -145,5 +159,6 @@ export function useLeads() {
     deleteAllLeads: deleteAllMutation.mutate,
     isUpdating: updateMutation.isPending,
     refetch,
+    retryCount: failureCount,
   };
 }

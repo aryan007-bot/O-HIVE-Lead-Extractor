@@ -239,13 +239,17 @@ function DashboardContent() {
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span>⚠️</span>
-              <p className="text-sm font-medium">Connecting to extraction service... (Backend warming up or retrying)</p>
+              <p className="text-sm font-medium">
+                {error.message.includes("503")
+                  ? "Backend service is waking up. Retrying automatically..."
+                  : "Connection issue. Retrying automatically..."}
+              </p>
             </div>
             <button
               onClick={() => refetch()}
               className="text-xs font-semibold underline hover:no-underline px-2 py-1 rounded bg-amber-500/20"
             >
-              Retry Connection
+              Retry Now
             </button>
           </div>
         )}

@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Max 60 seconds for VLM processing
+export const maxDuration = 60;
+
+const BACKEND_URL = "https://ohive-backend.onrender.com";
 
 async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   const path = params.path ? params.path.join("/") : "";
-  const rawBackend = process.env.NEXT_PUBLIC_API_URL;
-  const backendBase = (rawBackend && typeof rawBackend === "string" && rawBackend.trim().startsWith("http"))
-    ? rawBackend.trim()
-    : "https://ohive-backend.onrender.com";
-  const cleanBackend = backendBase.replace(/\/$/, "");
-  const targetUrl = new URL(`/api/v1/${path}`, cleanBackend);
+  const targetUrl = new URL(`/api/v1/${path}`, BACKEND_URL);
 
-  // Preserve query parameters
   req.nextUrl.searchParams.forEach((value, key) => {
     targetUrl.searchParams.append(key, value);
   });
@@ -26,7 +22,6 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
     }
   });
 
-  // Inject localtunnel / ngrok bypass headers
   headers.set("Bypass-Tunnel-Reminder", "true");
   headers.set("ngrok-skip-browser-warning", "true");
 
@@ -43,14 +38,19 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   }
 
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      const fetchOptions: RequestInit = {
+      const backendRes = await fetch(targetUrl.toString(), {
         method: req.method,
         headers: headers,
         body: bodyBuffer,
-      };
-      const backendRes = await fetch(targetUrl.toString(), fetchOptions);
+        signal: AbortSignal.timeout(45000),
+      });
+
+      if (backendRes.status === 503 && attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
+        continue;
+      }
 
       const resHeaders = new Headers();
       backendRes.headers.forEach((val, key) => {
@@ -71,8 +71,9 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
       });
     } catch (err: unknown) {
       lastError = err;
-      if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (attempt < 4) {
+        const backoff = attempt * 3000;
+        await new Promise((resolve) => setTimeout(resolve, backoff));
       }
     }
   }
@@ -81,7 +82,7 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   console.error("Proxy error to backend:", errorMsg);
   return NextResponse.json(
     {
-      detail: "Backend service temporarily unavailable. Please check if backend daemon is running.",
+      detail: "Backend service is starting up. Render free tier requires ~60s warm-up. Please wait and retry.",
       error: errorMsg,
     },
     {
@@ -90,6 +91,7 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "*",
+        "Retry-After": "60",
       },
     }
   );

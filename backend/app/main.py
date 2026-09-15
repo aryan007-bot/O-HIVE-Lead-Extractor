@@ -27,18 +27,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     logger.info("Starting %s (env=%s)", settings.APP_NAME, settings.APP_ENV)
 
-    init_db()
-    logger.info("Database initialized")
+    try:
+        init_db()
+        logger.info("Database initialized")
+    except Exception as e:
+        logger.critical("Database initialization failed: %s", str(e))
+        raise
 
-    vlm_service = VLMService()
-    # Non-blocking / lazy VLM initialization
-    app_state["vlm_service"] = vlm_service
-    extraction_service = ExtractionService(vlm_service)
-    app_state["extraction_service"] = extraction_service
+    try:
+        vlm_service = VLMService()
+        app_state["vlm_service"] = vlm_service
+        extraction_service = ExtractionService(vlm_service)
+        app_state["extraction_service"] = extraction_service
+    except Exception as e:
+        logger.warning("VLM service initialization failed (non-fatal): %s", str(e))
 
     yield
 
     logger.info("Shutting down %s", settings.APP_NAME)
+    if _engine := app_state.get("_engine"):
+        _engine.dispose()
 
 
 def create_app() -> FastAPI:
