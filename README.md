@@ -4,7 +4,25 @@ A production-grade, public application for extracting structured sales leads fro
 
 ---
 
-## 🏗️ System Architecture
+## 📋 Overview
+
+The **O-HIVE Lead Extractor** automates sales pipeline creation by extracting contact metadata (First Name, Last Name, Position, Company, Location, Phone, Email) from uploaded business cards. Built for high performance, reliability, and $0 cost deployment, it provides real-time extraction, search/filter capabilities, lead editing, deletion, and real Excel `.xlsx` report generation.
+
+---
+
+## ✨ Features
+
+* **Bulk Business Card Upload:** Drag & drop multiple JPEG, PNG, or WEBP images simultaneously.
+* **Qwen Vision-Language Model (VLM):** Intelligent visual extraction using `qwen/qwen-2.5-vl-72b-instruct:free` (OpenRouter API) with zero-shot visual comprehension.
+* **Multi-Layer Fallback Engine:** Automatic failover to `rapidocr-onnxruntime` (ONNX DBNet + CRNN) and Python heuristic regex engine if VLM API rate limits occur.
+* **Persistent Lead Database:** PostgreSQL storage (Neon/Supabase) ensuring data survives page reloads and container restarts.
+* **Interactive Leads Table:** Search across names/companies/locations, filter by extraction quality/status, inline editing, and deletion.
+* **Excel Export:** Server-side `.xlsx` generation using `openpyxl` with mandatory field columns.
+* **Resilient Non-Blocking Batch Processing:** Partial batch success guaranteed — 1 failed card does not crash the complete batch.
+
+---
+
+## 🏗️ Architecture
 
 ```text
                 PUBLIC INTERNET
@@ -34,24 +52,130 @@ A production-grade, public application for extracting structured sales leads fro
 
 ---
 
-## 🌐 Deployment Information
+## 🔄 System Flow
 
-* **Frontend Public URL:** [https://ohive-lead-extractor.vercel.app](https://ohive-lead-extractor.vercel.app) *(or localtunnel: `https://plenty-guests-cry.loca.lt`)*
-* **Backend Public URL:** [https://ohive-backend.onrender.com](https://ohive-backend.onrender.com) *(or localtunnel: `https://breezy-days-tickle.loca.lt`)*
-* **Interactive API Documentation (Swagger UI):** [https://ohive-backend.onrender.com/docs](https://ohive-backend.onrender.com/docs)
-* **Backend Health Check:** [https://ohive-backend.onrender.com/api/v1/health](https://ohive-backend.onrender.com/api/v1/health)
-* **Model Health Check:** [https://ohive-backend.onrender.com/api/v1/health/model](https://ohive-backend.onrender.com/api/v1/health/model)
+```text
+Next.js Frontend (Upload Drag & Drop)
+   ↓
+FastAPI Request Handler (`/api/v1/upload`)
+   ↓
+Image Type & Size Validation (Max 10 MB, JPEG/PNG/WEBP)
+   ↓
+Qwen VLM Service Layer (`vlm_service.py`)
+   ↓
+JSON Extraction & Schema Normalization
+   ↓
+Pydantic Validation (`LeadCreate` / `LeadResponse`)
+   ↓
+SQLAlchemy Database Persistence (`leads` table)
+   ↓
+Leads Dashboard API & Next.js UI Updates
+   ↓
+Server-Side Excel (.xlsx) Generation
+```
+
+### Why VLM Service Isolation?
+The `VLMService` class abstracts model execution behind a clean interface. This decouples API provider changes, model weight upgrades, and fallback OCR engines from API routing logic.
+
+### Why Pre-Storage Validation?
+Strict Pydantic schemas enforce type safety, email format validation, and phone number cleaning before touching database tables, ensuring zero corrupt database records.
 
 ---
 
-## 💡 Tech Stack & Features
+## 🛠️ Tech Stack
 
 * **Frontend:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, Lucide Icons, Glassmorphism UI.
-* **Backend:** FastAPI, Python 3.11/3.14, Pydantic v2, Uvicorn, Async HTTPX.
+* **Backend:** FastAPI, Python 3.11/3.14, Pydantic v2, Uvicorn, Async HTTPX, openpyxl.
 * **VLM Engine:** Qwen 2.5 VLM (`qwen/qwen-2.5-vl-72b-instruct:free` via OpenRouter API with `rapidocr-onnxruntime` pure-Python fallback).
-* **Database:** PostgreSQL (Neon / Supabase) for production persistence; SQLite (`leads.db`) for local dev.
-* **Export:** Real Excel `.xlsx` report generator (`openpyxl`).
+* **Database:** PostgreSQL (Neon / Supabase) for cloud production; SQLite (`leads.db`) for local dev.
 * **Containerization:** Docker & Docker Compose (`docker-compose.yml`).
+
+---
+
+## 📁 Project Structure
+
+```text
+ohive/
+├── frontend/                 # Next.js 16 Frontend Application
+│   ├── app/                  # App Router pages (Dashboard, Documentation)
+│   ├── components/           # React UI components (LeadTable, UploadZone, Header)
+│   ├── lib/                  # API client & helper constants
+│   ├── Dockerfile            # Multi-stage Next.js Dockerfile
+│   └── vercel.json           # Vercel deployment configuration
+├── backend/                  # FastAPI Backend Application
+│   ├── app/
+│   │   ├── api/routes/       # API endpoints (upload, leads, export, health)
+│   │   ├── core/             # Configuration, logging, exception handlers
+│   │   ├── models/           # SQLAlchemy LeadORM schema
+│   │   ├── schemas/          # Pydantic data schemas
+│   │   └── services/         # VLMService & ExtractionService
+│   ├── tests/                # Pytest test suite (15 tests)
+│   ├── Dockerfile            # Dynamic PORT-compatible backend Dockerfile
+│   ├── render.yaml           # Render Web Service deployment configuration
+│   └── requirements.txt      # Python package dependencies
+├── docker-compose.yml        # Multi-container local orchestration
+└── README.md                 # Project documentation
+```
+
+---
+
+## 🤖 Qwen VLM Implementation
+
+The application leverages **Qwen 2.5 VLM** (`qwen/qwen-2.5-vl-72b-instruct:free` via OpenRouter API). It receives base64-encoded business card images and returns structured JSON matching the target schema:
+
+```json
+{
+  "first_name": "Rahul",
+  "last_name": "Sharma",
+  "position": "Senior Software Engineer",
+  "company": "Acme Technologies",
+  "location": "Delhi, India",
+  "phone": "+91 98765 43210",
+  "email": "rahul.sharma@acme.com"
+}
+```
+
+Missing fields are returned as `null` and saved as database `NULL`. Fake placeholder strings (such as "N/A", "Unknown", "None") are strictly prohibited.
+
+---
+
+## 🗄️ Database Schema & Persistence
+
+The `leads` table schema (`LeadORM` in [`backend/app/models/lead.py`](file:///c:/Users/Aryan%20Dagar/OneDrive/Desktop/hire/backend/app/models/lead.py)):
+
+| Column Name | Data Type | Nullable | Default / Details |
+| :--- | :--- | :--- | :--- |
+| `id` | Integer | No | Primary Key, Auto-increment |
+| `first_name` | String | Yes | Extracted First Name |
+| `last_name` | String | Yes | Extracted Last Name |
+| `position` | String | Yes | Job Title / Role |
+| `company` | String | Yes | Organization Name |
+| `location` | String | Yes | Physical Address / City / State |
+| `phone` | String | Yes | Contact Phone Number |
+| `email` | String | Yes | Contact Email Address |
+| `status` | String | No | Default: `"extracted"` |
+| `extraction_quality` | String | No | `"complete"` or `"partial"` |
+| `source_filename` | String | Yes | Original uploaded image filename |
+| `created_at` | DateTime | No | UTC Timestamp |
+| `updated_at` | DateTime | No | UTC Timestamp on update |
+
+Auto-table initialization (`Base.metadata.create_all`) creates all tables on database connection without destructive reset operations.
+
+---
+
+## 📡 API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/health` | Service health status (`{"status": "ok", "service": "ohive-backend"}`) |
+| `GET` | `/api/v1/health/model` | Qwen VLM model readiness status |
+| `POST` | `/api/v1/upload` | Bulk business card upload & VLM extraction |
+| `GET` | `/api/v1/leads` | List leads (supports `search`, `status`, `quality`, `location`, `company`) |
+| `GET` | `/api/v1/leads/{id}` | Retrieve single lead by ID |
+| `PATCH` | `/api/v1/leads/{id}` | Edit existing lead fields |
+| `DELETE` | `/api/v1/leads/{id}` | Remove lead by ID |
+| `DELETE` | `/api/v1/leads` | Bulk delete leads |
+| `GET` | `/api/v1/export/excel` | Download leads as real `.xlsx` Excel file |
 
 ---
 
@@ -88,9 +212,9 @@ NEXT_PUBLIC_API_URL=https://ohive-backend.onrender.com
 
 ---
 
-## 🚀 Local Development Setup
+## 🚀 Local Setup & Execution
 
-### 1. Backend
+### 1. Running Backend
 
 ```bash
 cd backend
@@ -104,7 +228,7 @@ pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Frontend
+### 2. Running Frontend
 
 ```bash
 cd frontend
@@ -120,33 +244,51 @@ docker-compose up --build
 
 ---
 
-## ⚡ Free-Tier Hosting & Resource Limitations
+## 🌐 Public Deployment & Demo
 
-1. **Backend Sleep & Cold Starts (Render Free Tier):**
-   - Free instances auto-spin down after 15 minutes of inactivity.
-   - Initial cold-start requests take ~30–50 seconds while the container boots. The UI displays appropriate loading states (`Connecting to extraction service...`).
+* **Frontend Public URL:** [https://ohive-lead-extractor.vercel.app](https://ohive-lead-extractor.vercel.app) *(Active Localtunnel: `https://plenty-guests-cry.loca.lt`)*
+* **Backend Public URL:** [https://ohive-backend.onrender.com](https://ohive-backend.onrender.com) *(Active Localtunnel: `https://breezy-days-tickle.loca.lt`)*
+* **Interactive API Docs (Swagger UI):** [https://ohive-backend.onrender.com/docs](https://ohive-backend.onrender.com/docs)
+* **GitHub Repository:** [https://github.com/aryan007-bot/O-HIVE-Lead-Extractor.git](https://github.com/aryan007-bot/O-HIVE-Lead-Extractor.git)
 
-2. **VLM Rate Limits (OpenRouter Free Tier):**
-   - Free Qwen 2.5 VLM inference requests are subject to OpenRouter rate limits (approx 20 requests/min).
-   - If rate limits are exceeded, the backend automatically transitions to the internal RapidOCR + heuristic engine without failing user uploads.
+---
 
-3. **Ephemeral Container Filesystem:**
-   - Uploaded business card images are temporarily written for VLM processing and cleaned up immediately after extraction.
-   - All extracted sales leads are permanently stored in the PostgreSQL database.
+## 🧪 Testing
 
-4. **Database Storage (Neon PostgreSQL Free Tier):**
-   - 0.5 GiB storage capacity with automatic connection pooling, sufficient for thousands of lead records.
+The backend includes a comprehensive `pytest` test suite:
+
+```bash
+cd backend
+.\.venv\Scripts\python.exe -m pytest
+```
+
+**Results:** 15 passed, 0 failed across health checks, validation, lead CRUD, and Excel export.
+
+---
+
+## ⚡ Known Limitations & Future Improvements
+
+### Known Limitations
+1. **Free-Tier Cold Starts (Render):** Free web services sleep after 15 minutes of inactivity. Initial startup takes ~30–50s.
+2. **OpenRouter Rate Limits:** Free Qwen VLM requests are throttled at ~20 req/min. The system handles this gracefully using internal RapidOCR fallback.
+3. **Ephemeral Image Storage:** Uploaded card images are deleted immediately after VLM extraction. Extracted lead data is permanently saved in PostgreSQL.
+
+### Future Improvements
+* Webhook notifications for bulk extraction completion.
+* S3/Cloudinary integration for permanent business card image archival.
+* Custom user authentication (JWT / OAuth2).
 
 ---
 
 ## 🤖 AI Usage
 
 AI coding assistants were used during development for:
-* Code scaffolding
-* API integration
-* Debugging
-* Test generation
-* Deployment configuration
-* Documentation assistance
+- Code scaffolding
+- API implementation assistance
+- Frontend component development
+- Debugging
+- Test generation
+- Documentation assistance
+- Deployment configuration assistance
 
-Generated suggestions were reviewed and adapted to the application's architecture.
+Generated suggestions were reviewed, modified, and integrated based on the application's requirements and architecture.
