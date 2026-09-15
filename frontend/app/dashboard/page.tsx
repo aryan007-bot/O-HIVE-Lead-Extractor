@@ -23,6 +23,8 @@ import { validateFiles } from "@/lib/validations/upload";
 import type { UploadFile, BatchProcessingResponse, ProcessingResult } from "@/types/upload";
 import type { Lead } from "@/types/lead";
 
+import DashboardLoading from "./loading";
+
 let fileIdCounter = 0;
 function generateFileId(): string {
   return `file-${Date.now()}-${++fileIdCounter}`;
@@ -30,7 +32,7 @@ function generateFileId(): string {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<DashboardLoading />}>
       <DashboardContent />
     </Suspense>
   );
