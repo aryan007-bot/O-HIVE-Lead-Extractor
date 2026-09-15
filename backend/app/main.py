@@ -64,26 +64,12 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_origin_regex=r".*",
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=["*"],
+        max_age=86400,
     )
-
-    @app.middleware("http")
-    async def add_cors_headers(request: Request, call_next):
-        if request.method == "OPTIONS":
-            from fastapi.responses import Response
-            response = Response(status_code=200)
-        else:
-            response = await call_next(request)
-
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Expose-Headers"] = "*"
-        return response
 
     app.include_router(api_router)
 
