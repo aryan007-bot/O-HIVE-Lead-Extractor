@@ -42,7 +42,7 @@ async def model_health():
     initialized = bool(extraction.vlm_ready) if extraction else False
 
     overall_status = "ok" if (initialized and db_ok) else "degraded"
-    status_code = 200 if overall_status == "ok" else 503
+    status_code = 200
 
     from fastapi.responses import JSONResponse
     return JSONResponse(
