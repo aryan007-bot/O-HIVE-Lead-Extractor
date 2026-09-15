@@ -26,12 +26,12 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   headers.set("Bypass-Tunnel-Reminder", "true");
   headers.set("ngrok-skip-browser-warning", "true");
 
-  let bodyBytes: Uint8Array | undefined = undefined;
+  let bodyBuffer: ArrayBuffer | undefined = undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {
     try {
       const buffer = await req.arrayBuffer();
       if (buffer.byteLength > 0) {
-        bodyBytes = new Uint8Array(buffer);
+        bodyBuffer = buffer;
       }
     } catch {
       // empty body
@@ -41,13 +41,12 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const backendRes = await fetch(targetUrl.toString(), {
+      const fetchOptions: RequestInit = {
         method: req.method,
         headers: headers,
-        body: bodyBytes ? bodyBytes : undefined,
-        // @ts-expect-error Next.js fetch duplex support
-        duplex: "half",
-      });
+        body: bodyBuffer,
+      };
+      const backendRes = await fetch(targetUrl.toString(), fetchOptions);
 
       const resHeaders = new Headers();
       backendRes.headers.forEach((val, key) => {
