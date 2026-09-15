@@ -199,7 +199,12 @@ class VLMService:
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
 
-            timeout_cfg = httpx.Timeout(3.0, connect=2.0, read=3.0, write=2.0)
+            import concurrent.futures
+
+            def _do_openrouter_post():
+                with httpx.Client(timeout=3.0) as client:
+                    return client.post(api_url, headers=headers, json=payload)
+
             if api_key:
                 headers = {
                     "Authorization": f"Bearer {api_key}",
@@ -218,14 +223,18 @@ class VLMService:
                     ],
                     "temperature": 0.0,
                 }
-                with httpx.Client(timeout=timeout_cfg) as client:
-                    response = client.post(api_url, headers=headers, json=payload)
-                    if response.status_code == 200:
-                        data = response.json()
-                        raw_text = data["choices"][0]["message"]["content"]
-                        return extract_json_from_text(raw_text)
-                    else:
-                        logger.warning("VLM API returned status %d: %s", response.status_code, response.text)
+                try:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(_do_openrouter_post)
+                        response = future.result(timeout=3.0)
+                        if response.status_code == 200:
+                            data = response.json()
+                            raw_text = data["choices"][0]["message"]["content"]
+                            return extract_json_from_text(raw_text)
+                        else:
+                            logger.warning("VLM API returned status %d: %s", response.status_code, response.text)
+                except concurrent.futures.TimeoutError:
+                    logger.warning("VLM API wall-clock deadline exceeded (3.0s limit). Dropping to RapidOCR.")
 
             if settings.HF_TOKEN:
                 headers = {"Authorization": f"Bearer {settings.HF_TOKEN}"}
