@@ -52,8 +52,9 @@ def validate_image_file(
         )
 
     try:
-        img = Image.open(__import__("io").BytesIO(content))
-        img.verify()
+        from io import BytesIO
+        img = Image.open(BytesIO(content))
+        img.load()
     except Exception as e:
         raise InvalidImageError(f"File is not a valid image: {e}") from e
 
