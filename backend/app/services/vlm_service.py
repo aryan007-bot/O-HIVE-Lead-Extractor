@@ -297,9 +297,9 @@ class VLMService:
             fields["email"] = email_match.group(0).lower()
 
         # --- Extract Phone ---
-        phone_match = re.search(r'(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}', search_corpus)
+        phone_match = re.search(r'(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}', search_corpus)
         if not phone_match:
-            phone_match = re.search(r'\+?\d[\d\s-]{8,}\d', search_corpus)
+            phone_match = re.search(r'\+?\d[\d\s-]{8,14}\d', search_corpus)
         if phone_match:
             clean_phone = re.sub(r'[^\d+\s()-]', '', phone_match.group(0)).strip()
             if len(re.sub(r'\D', '', clean_phone)) >= 7:
@@ -322,14 +322,14 @@ class VLMService:
             "interactive", "ai", "io", "app", "apps", "box", "club", "store", "shop", "hub", "space",
             "brand", "brands", "design", "production", "productions", "publishing", "foundation", "institute",
             "school", "academy", "university", "clinic", "hospital", "center", "centre", "hotel", "resort",
-            "bank", "trust", "fund", "cyberdyne", "pixelcraft"
+            "bank", "trust", "fund", "cyberdyne", "pixelcraft", "archetype"
         ]
 
         location_keywords = [
             "street", "st", "avenue", "ave", "road", "rd", "boulevard", "blvd", "lane", "ln",
             "suite", "ste", "floor", "fl", "building", "bldg", "drive", "dr", "ca", "ny", "tx",
             "pa", "uk", "london", "scranton", "san francisco", "new york", "austin", "india",
-            "usa", "location", "address", "city", "state", "zip", "po box", "los angeles"
+            "usa", "location", "address", "city", "state", "zip", "po box", "los angeles", "sutter"
         ]
 
         # Derive email user prefix and email domain
