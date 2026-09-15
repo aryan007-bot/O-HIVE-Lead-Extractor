@@ -119,21 +119,25 @@ class VLMService:
         return device
 
     def extract_from_image(self, image_path: str) -> Dict[str, Any]:
+        import time
         settings = get_settings()
 
-        # 1. Fast path: RapidOCR & heuristic extraction (0.5s - 1s duration)
+        t0 = time.time()
         ocr_res = self._fallback_extract(image_path)
+        t_ocr = time.time() - t0
+        logger.info("Fallback OCR completed in %.2fs for %s", t_ocr, image_path)
+
         has_contact_info = any(ocr_res.get(k) for k in ["email", "phone", "first_name", "company"])
         
-        # If fast OCR successfully extracted contact info or VLM is disabled, return immediately
-        if has_contact_info or settings.VLM_PROVIDER == "rapidocr":
-            logger.info("Fast OCR extraction succeeded in sub-second duration for %s", image_path)
+        if has_contact_info or settings.VLM_PROVIDER in ["rapidocr", "auto"]:
+            logger.info("Fast OCR path returning in %.2fs", time.time() - t0)
             return ocr_res
 
-        # 2. Backup path: Try API provider if hosted/auto mode configured
+        t_api_start = time.time()
         api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY or settings.HF_TOKEN
         if settings.VLM_PROVIDER == "hosted" or (settings.VLM_PROVIDER == "auto" and api_key):
             api_res = self._extract_via_api(image_path)
+            logger.info("API VLM path completed in %.2fs", time.time() - t_api_start)
             if api_res is not None:
                 return api_res
 
