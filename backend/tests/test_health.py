@@ -25,8 +25,15 @@ def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
-    assert data["service"] == "ohive-vlm-backend"
+    assert data["status"] == "ok"
+    assert data["service"] == "ohive-backend"
+
+    v1_resp = client.get("/api/v1/health")
+    assert v1_resp.status_code == 200
+    v1_data = v1_resp.json()
+    assert v1_data["status"] == "ok"
+    assert v1_data["service"] == "ohive-backend"
+
 
 
 def test_model_health_endpoint(client):

@@ -7,7 +7,7 @@ env/
 venv/
 .venv/
 .env
-*.db
+*.db*
 *.sqlite3
 temp/*
 !temp/.gitkeep

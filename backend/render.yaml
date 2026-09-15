@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ohive-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: VLM_PROVIDER
+        value: hosted
+      - key: VLM_MODEL_NAME
+        value: qwen/qwen-2.5-vl-72b-instruct:free
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

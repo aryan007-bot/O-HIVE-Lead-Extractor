@@ -14,6 +14,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     APP_NAME: str = "ohive-vlm-backend"
@@ -29,12 +30,18 @@ class Settings(BaseSettings):
     HF_TOKEN: str = ""
     OPENROUTER_API_KEY: str = ""
     VLM_PROVIDER: str = "auto"
+    VLM_MODEL_NAME: str = "qwen/qwen-2.5-vl-72b-instruct:free"
+    VLM_API_URL: str = "https://openrouter.ai/api/v1/chat/completions"
+    VLM_API_KEY: str = ""
+    VLM_DEVICE: str = "auto"
+    VLM_MAX_CONCURRENCY: int = 2
+    VLM_MAX_NEW_TOKENS: int = 512
 
     MAX_FILE_SIZE_MB: int = 10
     MAX_BULK_FILES: int = 20
     ALLOWED_IMAGE_TYPES: str = "image/jpeg,image/png,image/webp"
 
-    VLM_MAX_CONCURRENCY: int = 2
+
 
     TEMP_DIR: str = "./temp"
 

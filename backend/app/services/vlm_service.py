@@ -60,8 +60,10 @@ class VLMService:
 
     def initialize(self) -> None:
         settings = get_settings()
-        if settings.HF_TOKEN or settings.OPENROUTER_API_KEY:
-            logger.info("Configured for remote VLM API inference")
+        api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY or settings.HF_TOKEN
+        
+        if settings.VLM_PROVIDER == "hosted" or (settings.VLM_PROVIDER == "auto" and api_key):
+            logger.info("Configured for remote VLM API inference (%s model: %s)", settings.VLM_PROVIDER, settings.VLM_MODEL_NAME)
             self._initialized = True
             self._fallback_mode = False
             return
@@ -74,7 +76,7 @@ class VLMService:
             if settings.QWEN_MODEL_PATH:
                 model_name = settings.QWEN_MODEL_PATH
 
-            self._device = self._resolve_device(settings.QWEN_DEVICE)
+            self._device = self._resolve_device(settings.VLM_DEVICE or settings.QWEN_DEVICE)
 
             logger.info("Loading local VLM model: %s on device: %s", model_name, self._device)
 
@@ -108,9 +110,10 @@ class VLMService:
 
     def extract_from_image(self, image_path: str) -> Dict[str, Any]:
         settings = get_settings()
+        api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY or settings.HF_TOKEN
 
-        # Try API provider first if tokens are configured
-        if settings.HF_TOKEN or settings.OPENROUTER_API_KEY:
+        # Try API provider first if hosted mode or key provided
+        if settings.VLM_PROVIDER == "hosted" or (settings.VLM_PROVIDER == "auto" and api_key):
             api_res = self._extract_via_api(image_path)
             if api_res is not None:
                 return api_res
@@ -149,7 +152,7 @@ class VLMService:
             with torch.inference_mode():
                 output_ids = self._model.generate(
                     **inputs,
-                    max_new_tokens=settings.QWEN_MAX_NEW_TOKENS,
+                    max_new_tokens=settings.VLM_MAX_NEW_TOKENS or settings.QWEN_MAX_NEW_TOKENS,
                     do_sample=False,
                 )
 
@@ -169,17 +172,21 @@ class VLMService:
         import httpx
 
         settings = get_settings()
+        api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY
+        api_url = settings.VLM_API_URL or "https://openrouter.ai/api/v1/chat/completions"
+        model_name = settings.VLM_MODEL_NAME or "qwen/qwen-2.5-vl-72b-instruct:free"
+
         try:
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
 
-            if settings.OPENROUTER_API_KEY:
+            if api_key:
                 headers = {
-                    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 }
                 payload = {
-                    "model": "qwen/qwen-2.5-vl-72b-instruct:free" if "2.5" in settings.QWEN_MODEL_NAME else "qwen/qwen-2-vl-7b-instruct:free",
+                    "model": model_name,
                     "messages": [
                         {
                             "role": "user",
@@ -191,11 +198,13 @@ class VLMService:
                     ],
                     "temperature": 0.0,
                 }
-                response = httpx.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30.0)
+                response = httpx.post(api_url, headers=headers, json=payload, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
                     raw_text = data["choices"][0]["message"]["content"]
                     return extract_json_from_text(raw_text)
+                else:
+                    logger.warning("VLM API returned status %d: %s", response.status_code, response.text)
 
             if settings.HF_TOKEN:
                 headers = {"Authorization": f"Bearer {settings.HF_TOKEN}"}
@@ -220,6 +229,7 @@ class VLMService:
             logger.warning("API VLM extraction exception: %s", e)
 
         return None
+
 
     def _fallback_extract(self, image_path: str) -> Dict[str, Any]:
         logger.info("Executing production RapidOCR & heuristic extraction for %s", image_path)

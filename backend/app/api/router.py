@@ -14,12 +14,3 @@ api_router.include_router(leads_router)
 api_router.include_router(export_router)
 
 
-@api_router.get("/api/v1/health/model")
-async def model_health():
-    from app.main import app_state
-    vlm = app_state.get("extraction_service")
-    initialized = vlm.vlm_ready if vlm else False
-    return {
-        "status": "healthy" if initialized else "model_not_loaded",
-        "model_initialized": initialized,
-    }
