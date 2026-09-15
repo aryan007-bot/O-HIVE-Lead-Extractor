@@ -26,56 +26,70 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   headers.set("Bypass-Tunnel-Reminder", "true");
   headers.set("ngrok-skip-browser-warning", "true");
 
-  try {
-    let body: ReadableStream<Uint8Array> | undefined = undefined;
-    if (req.method !== "GET" && req.method !== "HEAD") {
-      body = req.body || undefined;
+  let bodyBytes: Uint8Array | undefined = undefined;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    try {
+      const buffer = await req.arrayBuffer();
+      if (buffer.byteLength > 0) {
+        bodyBytes = new Uint8Array(buffer);
+      }
+    } catch {
+      // empty body
     }
-
-    const backendRes = await fetch(targetUrl.toString(), {
-      method: req.method,
-      headers: headers,
-      body: body,
-      // @ts-expect-error Next.js fetch duplex support for body streaming
-      duplex: "half",
-    });
-
-    const resHeaders = new Headers();
-    backendRes.headers.forEach((val, key) => {
-      const lower = key.toLowerCase();
-      if (lower !== "content-encoding" && lower !== "content-length" && lower !== "transfer-encoding") {
-        resHeaders.set(key, val);
-      }
-    });
-
-    // Ensure cross-origin headers are present
-    resHeaders.set("Access-Control-Allow-Origin", "*");
-    resHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    resHeaders.set("Access-Control-Allow-Headers", "*");
-
-    return new NextResponse(backendRes.body, {
-      status: backendRes.status,
-      statusText: backendRes.statusText,
-      headers: resHeaders,
-    });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error("Proxy error to backend:", errorMsg);
-    return NextResponse.json(
-      {
-        detail: "Backend service temporarily unavailable. Please check if backend daemon is running.",
-        error: errorMsg,
-      },
-      {
-        status: 503,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "*",
-        },
-      }
-    );
   }
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const backendRes = await fetch(targetUrl.toString(), {
+        method: req.method,
+        headers: headers,
+        body: bodyBytes ? bodyBytes : undefined,
+        // @ts-expect-error Next.js fetch duplex support
+        duplex: "half",
+      });
+
+      const resHeaders = new Headers();
+      backendRes.headers.forEach((val, key) => {
+        const lower = key.toLowerCase();
+        if (lower !== "content-encoding" && lower !== "content-length" && lower !== "transfer-encoding") {
+          resHeaders.set(key, val);
+        }
+      });
+
+      resHeaders.set("Access-Control-Allow-Origin", "*");
+      resHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      resHeaders.set("Access-Control-Allow-Headers", "*");
+
+      return new NextResponse(backendRes.body, {
+        status: backendRes.status,
+        statusText: backendRes.statusText,
+        headers: resHeaders,
+      });
+    } catch (err: unknown) {
+      lastError = err;
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    }
+  }
+
+  const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+  console.error("Proxy error to backend:", errorMsg);
+  return NextResponse.json(
+    {
+      detail: "Backend service temporarily unavailable. Please check if backend daemon is running.",
+      error: errorMsg,
+    },
+    {
+      status: 503,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+      },
+    }
+  );
 }
 
 export async function GET(req: NextRequest, props: { params: Promise<{ path?: string[] }> }) {
