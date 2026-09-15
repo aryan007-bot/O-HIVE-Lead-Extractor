@@ -35,7 +35,7 @@ export function useLeads() {
     queryFn: () => getLeads(mergedParams),
     retry: 5,
     retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex) + Math.random() * 1000, 30000),
-    staleTime: 30000,
+    staleTime: 0,
     refetchOnWindowFocus: true,
   });
 
@@ -48,14 +48,16 @@ export function useLeads() {
     queryFn: getLeadStats,
     retry: 5,
     retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex) + Math.random() * 1000, 30000),
-    staleTime: 30000,
+    staleTime: 0,
     refetchOnWindowFocus: true,
   });
 
   const refetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["leads"] });
+    queryClient.invalidateQueries({ queryKey: ["leadStats"] });
     refetchLeads();
     refetchStats();
-  }, [refetchLeads, refetchStats]);
+  }, [queryClient, refetchLeads, refetchStats]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: LeadUpdatePayload }) =>

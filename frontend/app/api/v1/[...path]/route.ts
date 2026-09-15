@@ -38,12 +38,12 @@ async function handleProxy(req: NextRequest, params: { path?: string[] }) {
   }
 
   try {
-    const backendRes = await fetch(targetUrl.toString(), {
-      method: req.method,
-      headers: headers,
-      body: bodyBuffer,
-      signal: AbortSignal.timeout(12000),
-    });
+      const backendRes = await fetch(targetUrl.toString(), {
+        method: req.method,
+        headers: headers,
+        body: bodyBuffer,
+        signal: AbortSignal.timeout(120000),
+      });
 
     const resHeaders = new Headers();
     backendRes.headers.forEach((val, key) => {

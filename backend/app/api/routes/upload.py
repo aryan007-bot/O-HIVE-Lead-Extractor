@@ -59,51 +59,71 @@ def _calculate_quality(lead_data: dict) -> str:
     return "partial"
 
 
-
-async def _process_single_file(
-    file: UploadFile,
+def _process_single_file_sync(
+    file_content: bytes,
+    filename: str,
+    content_type: str,
     extraction_service: ExtractionService,
     image_service: ImageService,
 ) -> ProcessingResult:
     try:
-        content = await file.read()
+        image_service.validate(file_content, filename, content_type)
 
-        image_service.validate(content, file.filename or "unknown", file.content_type)
-
-        with log_duration(logger, f"Processing {file.filename}", filename=file.filename):
-            lead = extraction_service.extract_lead(content, file.filename or "unknown")
+        with log_duration(logger, f"Processing {filename}", filename=filename):
+            lead = extraction_service.extract_lead(file_content, filename)
 
         quality = _calculate_quality(lead.model_dump())
         if quality == "failed":
             return ProcessingResult(
-                filename=file.filename or "unknown",
+                filename=filename,
                 status="failed",
                 error="Could not extract contact information from business card.",
                 extraction_quality="failed",
             )
 
-        logger.info("Success processing %s (quality=%s)", file.filename, quality)
+        logger.info("Success processing %s (quality=%s)", filename, quality)
         return ProcessingResult(
-            filename=file.filename or "unknown",
+            filename=filename,
             status="success",
             lead=lead,
             extraction_quality=quality,
         )
 
     except AppError as e:
-        logger.warning("Failed processing %s: %s", file.filename, e.message)
+        logger.warning("Failed processing %s: %s", filename, e.message)
         return ProcessingResult(
-            filename=file.filename or "unknown",
+            filename=filename,
             status="failed",
             error=e.message,
         )
     except Exception as e:
-        logger.error("Unexpected error processing %s: %s", file.filename, e)
+        logger.error("Unexpected error processing %s: %s", filename, e)
         return ProcessingResult(
-            filename=file.filename or "unknown",
+            filename=filename,
             status="failed",
             error="An unexpected error occurred during processing.",
         )
+
+
+async def _process_single_file(
+    file: UploadFile,
+    extraction_service: ExtractionService,
+    image_service: ImageService,
+) -> ProcessingResult:
+    content = await file.read()
+    filename = file.filename or "unknown"
+    content_type = file.content_type or "application/octet-stream"
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        _process_single_file_sync,
+        content,
+        filename,
+        content_type,
+        extraction_service,
+        image_service,
+    )
 
 
 @router.post("/upload", response_model=BulkProcessingResponse)

@@ -223,8 +223,9 @@ class VLMService:
                         }
                     ],
                     "temperature": 0.0,
+                    "max_tokens": 150,
                 }
-                response = requests.post(api_url, headers=headers, json=payload, timeout=2.5)
+                response = requests.post(api_url, headers=headers, json=payload, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
                     raw_text = data["choices"][0]["message"]["content"]
@@ -240,7 +241,7 @@ class VLMService:
                     f"https://api-inference.huggingface.co/models/{settings.QWEN_MODEL_NAME}",
                     headers=headers,
                     json=payload,
-                    timeout=2.5,
+                    timeout=30.0,
                 )
                 if response.status_code == 200:
                     res_json = response.json()

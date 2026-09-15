@@ -104,7 +104,8 @@ class ApiClient {
     const url = this.buildUrl(endpoint, params, forceAbsolute);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    const isUpload = fetchOptions.body instanceof FormData;
+    const timeoutId = setTimeout(() => controller.abort(), isUpload ? 120000 : 30000);
 
     try {
       const response = await fetch(url, {

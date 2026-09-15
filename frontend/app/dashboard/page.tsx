@@ -75,60 +75,14 @@ function DashboardContent() {
     uploadRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  const addFiles = useCallback(async (newFiles: File[]) => {
-    const { valid, errors } = validateFiles(newFiles);
-
-    if (errors.length > 0) {
-      errors.forEach(({ file, error }) => {
-        toast.error(`${file}: ${error}`);
-      });
-    }
-
-    const compressedFiles: File[] = await Promise.all(
-      valid.map((file: File) => compressImageForUpload(file))
-    );
-
-    setFiles((prev) => {
-      const existingNames = new Set(prev.map((f) => f.file.name));
-      const uniqueNewFiles = compressedFiles.filter((f: File) => !existingNames.has(f.name));
-
-      if (uniqueNewFiles.length < valid.length) {
-        const skipped = valid.length - uniqueNewFiles.length;
-        toast.warning(`${skipped} duplicate file(s) skipped`);
-      }
-
-      const uploadFiles: UploadFile[] = uniqueNewFiles.map((file: File) => ({
-        id: generateFileId(),
-        file,
-        preview: URL.createObjectURL(file),
-        status: "pending" as const,
-      }));
-
-      return [...prev, ...uploadFiles];
-    });
-  }, []);
-
-  const removeFile = useCallback((id: string) => {
-    setFiles((prev) => {
-      const file = prev.find((f) => f.id === id);
-      if (file) URL.revokeObjectURL(file.preview);
-      return prev.filter((f) => f.id !== id);
-    });
-  }, []);
-
-  const clearFiles = useCallback(() => {
-    files.forEach((f) => URL.revokeObjectURL(f.preview));
-    setFiles([]);
-    setResults(null);
-  }, [files]);
-
-  const processFiles = useCallback(async () => {
-    if (files.length === 0) return;
+  const processFiles = useCallback(async (customFiles?: UploadFile[]) => {
+    const filesToProcess = customFiles || files.filter((f) => f.status === "pending");
+    if (filesToProcess.length === 0) return;
 
     setIsProcessing(true);
     setResults(null);
 
-    const newJobs = files.map((f) => ({
+    const newJobs = filesToProcess.map((f) => ({
       id: f.id,
       filename: f.file.name,
       status: "processing" as const,
@@ -137,11 +91,15 @@ function DashboardContent() {
     setProcessingJobs((prev) => [...newJobs, ...prev]);
 
     setFiles((prev) =>
-      prev.map((f) => ({ ...f, status: "processing" as const }))
+      prev.map((f) =>
+        filesToProcess.some((tp) => tp.id === f.id)
+          ? { ...f, status: "processing" as const }
+          : f
+      )
     );
 
     try {
-      const rawFiles = files.map((f) => f.file);
+      const rawFiles = filesToProcess.map((f) => f.file);
       const response = await uploadBusinessCards(rawFiles);
 
       const mappedResults: ProcessingResult[] = response.results.map((r) => ({
@@ -162,14 +120,14 @@ function DashboardContent() {
       setResults(batchResults);
 
       setFiles((prev) =>
-        prev.map((f, index) => {
-          const result = response.results[index];
-          if (!result) return f;
+        prev.map((f) => {
+          const matchingResult = response.results.find((r) => r.filename === f.file.name);
+          if (!matchingResult) return f;
           return {
             ...f,
-            status: result.status === "success" ? "completed" : "failed",
-            error: result.error,
-            leadId: result.lead_id,
+            status: matchingResult.status === "success" ? "completed" : "failed",
+            error: matchingResult.error,
+            leadId: matchingResult.lead_id,
           };
         })
       );
@@ -193,6 +151,7 @@ function DashboardContent() {
         toast.success(`All ${response.successful} cards processed successfully.`);
       }
 
+      // Invalidate query cache and trigger immediate UI table & stats refresh
       refetch();
     } catch {
       toast.error("Failed to process cards. Please try again.");
@@ -206,6 +165,61 @@ function DashboardContent() {
       setIsProcessing(false);
     }
   }, [files, refetch]);
+
+  const addFiles = useCallback(async (newFiles: File[]) => {
+    const { valid, errors } = validateFiles(newFiles);
+
+    if (errors.length > 0) {
+      errors.forEach(({ file, error }) => {
+        toast.error(`${file}: ${error}`);
+      });
+    }
+
+    const compressedFiles: File[] = await Promise.all(
+      valid.map((file: File) => compressImageForUpload(file))
+    );
+
+    let newUploadFiles: UploadFile[] = [];
+
+    setFiles((prev) => {
+      const existingNames = new Set(prev.map((f) => f.file.name));
+      const uniqueNewFiles = compressedFiles.filter((f: File) => !existingNames.has(f.name));
+
+      if (uniqueNewFiles.length < valid.length) {
+        const skipped = valid.length - uniqueNewFiles.length;
+        toast.warning(`${skipped} duplicate file(s) skipped`);
+      }
+
+      newUploadFiles = uniqueNewFiles.map((file: File) => ({
+        id: generateFileId(),
+        file,
+        preview: URL.createObjectURL(file),
+        status: "pending" as const,
+      }));
+
+      return [...prev, ...newUploadFiles];
+    });
+
+    if (newUploadFiles.length > 0) {
+      setTimeout(() => {
+        processFiles(newUploadFiles);
+      }, 100);
+    }
+  }, [processFiles]);
+
+  const removeFile = useCallback((id: string) => {
+    setFiles((prev) => {
+      const file = prev.find((f) => f.id === id);
+      if (file) URL.revokeObjectURL(file.preview);
+      return prev.filter((f) => f.id !== id);
+    });
+  }, []);
+
+  const clearFiles = useCallback(() => {
+    files.forEach((f) => URL.revokeObjectURL(f.preview));
+    setFiles([]);
+    setResults(null);
+  }, [files]);
 
   const handleEditLead = useCallback((lead: Lead) => {
     setSelectedLead(lead);
