@@ -179,7 +179,7 @@ function DashboardContent() {
       valid.map((file: File) => compressImageForUpload(file))
     );
 
-    let newUploadFiles: UploadFile[] = [];
+    let createdUploadFiles: UploadFile[] = [];
 
     setFiles((prev) => {
       const existingNames = new Set(prev.map((f) => f.file.name));
@@ -190,20 +190,26 @@ function DashboardContent() {
         toast.warning(`${skipped} duplicate file(s) skipped`);
       }
 
-      newUploadFiles = uniqueNewFiles.map((file: File) => ({
+      createdUploadFiles = uniqueNewFiles.map((file: File) => ({
         id: generateFileId(),
         file,
         preview: URL.createObjectURL(file),
         status: "pending" as const,
       }));
 
-      return [...prev, ...newUploadFiles];
+      return [...prev, ...createdUploadFiles];
     });
 
-    if (newUploadFiles.length > 0) {
+    if (compressedFiles.length > 0) {
       setTimeout(() => {
-        processFiles(newUploadFiles);
-      }, 100);
+        setFiles((currentFiles) => {
+          const pendingFiles = currentFiles.filter((f) => f.status === "pending");
+          if (pendingFiles.length > 0) {
+            processFiles(pendingFiles);
+          }
+          return currentFiles;
+        });
+      }, 150);
     }
   }, [processFiles]);
 
