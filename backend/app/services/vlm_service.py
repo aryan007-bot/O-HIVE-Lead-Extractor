@@ -181,6 +181,7 @@ class VLMService:
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
 
+            timeout_cfg = httpx.Timeout(3.0, connect=2.0, read=3.0, write=2.0)
             if api_key:
                 headers = {
                     "Authorization": f"Bearer {api_key}",
@@ -199,13 +200,14 @@ class VLMService:
                     ],
                     "temperature": 0.0,
                 }
-                response = httpx.post(api_url, headers=headers, json=payload, timeout=4.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    raw_text = data["choices"][0]["message"]["content"]
-                    return extract_json_from_text(raw_text)
-                else:
-                    logger.warning("VLM API returned status %d: %s", response.status_code, response.text)
+                with httpx.Client(timeout=timeout_cfg) as client:
+                    response = client.post(api_url, headers=headers, json=payload)
+                    if response.status_code == 200:
+                        data = response.json()
+                        raw_text = data["choices"][0]["message"]["content"]
+                        return extract_json_from_text(raw_text)
+                    else:
+                        logger.warning("VLM API returned status %d: %s", response.status_code, response.text)
 
             if settings.HF_TOKEN:
                 headers = {"Authorization": f"Bearer {settings.HF_TOKEN}"}
@@ -213,19 +215,19 @@ class VLMService:
                     "inputs": f"data:image/jpeg;base64,{encoded_image}",
                     "parameters": {"prompt": EXTRACTION_PROMPT},
                 }
-                response = httpx.post(
-                    f"https://api-inference.huggingface.co/models/{settings.QWEN_MODEL_NAME}",
-                    headers=headers,
-                    json=payload,
-                    timeout=4.0,
-                )
-                if response.status_code == 200:
-                    res_json = response.json()
-                    if isinstance(res_json, list) and len(res_json) > 0:
-                        raw_text = res_json[0].get("generated_text", str(res_json[0]))
-                    else:
-                        raw_text = str(res_json)
-                    return extract_json_from_text(raw_text)
+                with httpx.Client(timeout=timeout_cfg) as client:
+                    response = client.post(
+                        f"https://api-inference.huggingface.co/models/{settings.QWEN_MODEL_NAME}",
+                        headers=headers,
+                        json=payload,
+                    )
+                    if response.status_code == 200:
+                        res_json = response.json()
+                        if isinstance(res_json, list) and len(res_json) > 0:
+                            raw_text = res_json[0].get("generated_text", str(res_json[0]))
+                        else:
+                            raw_text = str(res_json)
+                        return extract_json_from_text(raw_text)
         except Exception as e:
             logger.warning("API VLM extraction exception: %s", e)
 
