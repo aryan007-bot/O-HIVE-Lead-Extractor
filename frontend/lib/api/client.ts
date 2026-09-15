@@ -1,0 +1,83 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+interface RequestOptions extends RequestInit {
+  params?: Record<string, string>;
+}
+
+class ApiClient {
+  private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  private buildUrl(endpoint: string, params?: Record<string, string>): string {
+    const url = new URL(endpoint, this.baseUrl);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.append(key, value);
+      });
+    }
+    return url.toString();
+  }
+
+  async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    const { params, ...fetchOptions } = options;
+    const url = this.buildUrl(endpoint, params);
+
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers: {
+        ...fetchOptions.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: "An error occurred" }));
+      throw new Error(errorData.detail || `Request failed with status ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>(endpoint, { ...options, method: "GET" });
+  }
+
+  async post<T>(endpoint: string, body?: FormData | unknown, options?: RequestOptions): Promise<T> {
+    const isFormData = body instanceof FormData;
+    return this.request<T>(endpoint, {
+      ...options,
+      method: "POST",
+      body: isFormData ? body : body ? JSON.stringify(body) : undefined,
+      headers: isFormData ? {} : { "Content-Type": "application/json", ...options?.headers },
+    });
+  }
+
+  async put<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: "PUT",
+      body: body ? JSON.stringify(body) : undefined,
+      headers: { "Content-Type": "application/json", ...options?.headers },
+    });
+  }
+
+  async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>(endpoint, { ...options, method: "DELETE" });
+  }
+
+  async download(endpoint: string, options?: RequestOptions): Promise<Blob> {
+    const url = this.buildUrl(endpoint, options?.params);
+    const response = await fetch(url, { ...options, method: "GET" });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: "Download failed" }));
+      throw new Error(errorData.detail || "Download failed");
+    }
+
+    return response.blob();
+  }
+}
+
+export const apiClient = new ApiClient(API_BASE_URL);
