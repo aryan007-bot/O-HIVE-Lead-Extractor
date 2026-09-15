@@ -46,15 +46,18 @@ def _calculate_quality(lead_data: dict) -> str:
     has_name = bool(lead_data.get("first_name") or lead_data.get("last_name"))
     has_company = bool(lead_data.get("company"))
     has_contact = bool(lead_data.get("email") or lead_data.get("phone"))
+    has_position = bool(lead_data.get("position"))
+    has_location = bool(lead_data.get("location"))
 
-    if not (has_contact or (has_name and has_company)):
+    if not (has_name or has_company or has_contact or has_position or has_location):
         return "failed"
 
     required_fields = ["first_name", "last_name", "position", "company", "location", "phone", "email"]
-    filled = sum(1 for f in required_fields if lead_data.get(f))
+    filled = sum(1 for f in required_fields if lead_data.get(f) and str(lead_data.get(f)).strip())
     if filled >= 4:
         return "complete"
     return "partial"
+
 
 
 async def _process_single_file(
