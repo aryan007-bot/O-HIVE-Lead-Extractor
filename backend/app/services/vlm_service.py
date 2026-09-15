@@ -189,21 +189,16 @@ class VLMService:
     def _extract_via_api(self, image_path: str) -> Optional[Dict[str, Any]]:
         import base64
         import httpx
+        import concurrent.futures
 
-        settings = get_settings()
-        api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY
-        api_url = settings.VLM_API_URL or "https://openrouter.ai/api/v1/chat/completions"
-        model_name = settings.VLM_MODEL_NAME or "qwen/qwen-2.5-vl-72b-instruct:free"
+        def _fetch_from_remote_api():
+            settings = get_settings()
+            api_key = settings.VLM_API_KEY or settings.OPENROUTER_API_KEY
+            api_url = settings.VLM_API_URL or "https://openrouter.ai/api/v1/chat/completions"
+            model_name = settings.VLM_MODEL_NAME or "qwen/qwen-2.5-vl-72b-instruct:free"
 
-        try:
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
-
-            import concurrent.futures
-
-            def _do_openrouter_post():
-                with httpx.Client(timeout=3.0) as client:
-                    return client.post(api_url, headers=headers, json=payload)
 
             if api_key:
                 headers = {
@@ -223,18 +218,12 @@ class VLMService:
                     ],
                     "temperature": 0.0,
                 }
-                try:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(_do_openrouter_post)
-                        response = future.result(timeout=3.0)
-                        if response.status_code == 200:
-                            data = response.json()
-                            raw_text = data["choices"][0]["message"]["content"]
-                            return extract_json_from_text(raw_text)
-                        else:
-                            logger.warning("VLM API returned status %d: %s", response.status_code, response.text)
-                except concurrent.futures.TimeoutError:
-                    logger.warning("VLM API wall-clock deadline exceeded (3.0s limit). Dropping to RapidOCR.")
+                with httpx.Client(timeout=2.5) as client:
+                    response = client.post(api_url, headers=headers, json=payload)
+                    if response.status_code == 200:
+                        data = response.json()
+                        raw_text = data["choices"][0]["message"]["content"]
+                        return extract_json_from_text(raw_text)
 
             if settings.HF_TOKEN:
                 headers = {"Authorization": f"Bearer {settings.HF_TOKEN}"}
@@ -242,7 +231,7 @@ class VLMService:
                     "inputs": f"data:image/jpeg;base64,{encoded_image}",
                     "parameters": {"prompt": EXTRACTION_PROMPT},
                 }
-                with httpx.Client(timeout=timeout_cfg) as client:
+                with httpx.Client(timeout=2.5) as client:
                     response = client.post(
                         f"https://api-inference.huggingface.co/models/{settings.QWEN_MODEL_NAME}",
                         headers=headers,
@@ -255,10 +244,19 @@ class VLMService:
                         else:
                             raw_text = str(res_json)
                         return extract_json_from_text(raw_text)
-        except Exception as e:
-            logger.warning("API VLM extraction exception: %s", e)
 
-        return None
+            return None
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_fetch_from_remote_api)
+                return future.result(timeout=3.0)
+        except concurrent.futures.TimeoutError:
+            logger.warning("VLM API total wall-clock budget (3.0s) exceeded for %s. Dropping to RapidOCR.", image_path)
+            return None
+        except Exception as e:
+            logger.warning("VLM API extraction exception: %s", e)
+            return None
 
 
     def _fallback_extract(self, image_path: str) -> Dict[str, Any]:
