@@ -23,6 +23,7 @@ import { validateFiles } from "@/lib/validations/upload";
 import type { UploadFile, BatchProcessingResponse, ProcessingResult } from "@/types/upload";
 import type { Lead } from "@/types/lead";
 
+import { compressImageForUpload } from "@/lib/utils/image-optimizer";
 import DashboardLoading from "./loading";
 
 let fileIdCounter = 0;
@@ -74,7 +75,7 @@ function DashboardContent() {
     uploadRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  const addFiles = useCallback((newFiles: File[]) => {
+  const addFiles = useCallback(async (newFiles: File[]) => {
     const { valid, errors } = validateFiles(newFiles);
 
     if (errors.length > 0) {
@@ -83,16 +84,20 @@ function DashboardContent() {
       });
     }
 
+    const compressedFiles: File[] = await Promise.all(
+      valid.map((file: File) => compressImageForUpload(file))
+    );
+
     setFiles((prev) => {
       const existingNames = new Set(prev.map((f) => f.file.name));
-      const uniqueNewFiles = valid.filter((f) => !existingNames.has(f.name));
+      const uniqueNewFiles = compressedFiles.filter((f: File) => !existingNames.has(f.name));
 
       if (uniqueNewFiles.length < valid.length) {
         const skipped = valid.length - uniqueNewFiles.length;
         toast.warning(`${skipped} duplicate file(s) skipped`);
       }
 
-      const uploadFiles: UploadFile[] = uniqueNewFiles.map((file) => ({
+      const uploadFiles: UploadFile[] = uniqueNewFiles.map((file: File) => ({
         id: generateFileId(),
         file,
         preview: URL.createObjectURL(file),
